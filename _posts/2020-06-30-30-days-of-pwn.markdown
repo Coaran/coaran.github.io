@@ -1,0 +1,11 @@
+---
+layout: post
+title:  "30 Days of pwn"
+date:   2020-06-30 22:05:48 +0100
+categories: pwn
+---
+For the month of July I will be attempting to learn about binary exploitation starting from the absolute basics, to wherever I end up.
+
+Starting this journey I will be following through the excercises found [here](https://exploit-exercises.lains.space/protostar/) and use this blog to detail the entire process of the challenges found here.
+
+
