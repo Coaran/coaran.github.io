@@ -8,7 +8,7 @@ title: Search
   border-radius: 5px;
   height: 50px;
   width: 100%;
-  font-size:20px;
+  font-size:20	px;
   padding: 2px 23px 2px 30px;
   outline: 0;
   background-color: #f5f5f5;

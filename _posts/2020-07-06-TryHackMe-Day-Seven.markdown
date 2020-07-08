@@ -5,7 +5,7 @@ date:   2020-07-07 20:05:48 +0100
 categories: pwn
 ---
 
-Here is day six of the 30 days of pwn challenge. Today we will be looking at 2 TryHackMe machines: [Brainpan](https://tryhackme.com/room/brainpan) and [Brainstorm](https://tryhackme.com/room/brainstorm)
+Here is day seven of the 30 days of pwn challenge. Today we will be looking at 2 TryHackMe machines: [Brainpan](https://tryhackme.com/room/brainpan) and [Brainstorm](https://tryhackme.com/room/brainstorm)
 
 ## Brainstorm
 
