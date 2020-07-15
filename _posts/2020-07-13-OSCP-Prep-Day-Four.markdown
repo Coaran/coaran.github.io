@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "OSCP Preparation Day Four"
-date:   2020-07-12 20:05:48 +0100
+date:   2020-07-13 20:05:48 +0100
 categories: oscp
 ---
 
